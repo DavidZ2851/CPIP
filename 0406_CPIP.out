@@ -1,0 +1,25 @@
+Start the pipeline...
+Start training the model...
+Epoch: 1
+Train Loss: 2.0795276982285134, Valid Loss: 2.079441542876394, Train Accuracy: 0.12540175108057186, Valid Accuracy: 0.12605263157894736
+Saved Best Model!
+Epoch: 2
+Train Loss: 2.079449280817361, Valid Loss: 2.079441545887997, Train Accuracy: 0.12347611659093428, Valid Accuracy: 0.12473684210526316
+Epoch: 3
+Train Loss: 2.079441220192506, Valid Loss: 2.0794415418725265, Train Accuracy: 0.12472293028926078, Valid Accuracy: 0.12447368421052632
+Saved Best Model!
+Epoch: 4
+Train Loss: 2.079450308952894, Valid Loss: 2.07944154237446, Train Accuracy: 0.1252770697107392, Valid Accuracy: 0.12578947368421053
+Epoch: 5
+Train Loss: 2.079446305856596, Valid Loss: 2.079441539864791, Train Accuracy: 0.1243904466363737, Valid Accuracy: 0.12736842105263158
+Saved Best Model!
+Epoch: 6
+Train Loss: 2.0794457706765117, Valid Loss: 2.079441543378328, Train Accuracy: 0.1252770697107392, Valid Accuracy: 0.12421052631578948
+Epoch: 7
+Train Loss: 2.0794443879385924, Valid Loss: 2.079441533339651, Train Accuracy: 0.12502770697107393, Valid Accuracy: 0.12631578947368421
+Saved Best Model!
+Epoch: 8
+Train Loss: 2.0794452903250376, Valid Loss: 2.079441543378328, Train Accuracy: 0.12591433004543942, Valid Accuracy: 0.125
+Epoch: 9
+Train Loss: 2.079445929190648, Valid Loss: 2.079441543378328, Train Accuracy: 0.12481990468801951, Valid Accuracy: 0.1231578947368421
+Epoch: 10

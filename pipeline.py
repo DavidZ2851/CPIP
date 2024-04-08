@@ -33,14 +33,15 @@ def parsing_argument():
     parser.add_argument('--do_train', type= int, default = 1, help = "Whether to train the model: 1: yes; 0: no")
     parser.add_argument('--generate_query', type= int, default = 0, help = "Whether to generate query images: 1: yes; 0: no")
     parser.add_argument('--experiment_name', type=str, default="0405_VPR", help="Experiment name")
-    parser.add_argument('--epochs', type=int, default=20, help="Number of epochs for training")
+    parser.add_argument('--epochs', type=int, default=50, help="Number of epochs for training")
     parser.add_argument('--model_name', type=str, default='MixVPR', help="Model name")
+    parser.add_argument('--dataset', type=str, default='Tokyo247', help="Dataset name")
     # !!                                 !!
 
     parser.add_argument('--vpr_threshold', type=float, default=0.05)
     parser.add_argument('--resolution_decay', type= int, default = 4, help = "Resolution decay factor")
-    parser.add_argument('--image_path', type=str, default="/scratch/jh7956/Datasets/000", help="Path to the data")
-    parser.add_argument('--vector_path', type=str, default="/scratch/jh7956/Datasets/000/vector", help="Path to the data")
+    parser.add_argument('--image_path', type=str, default="/scratch/jh7956/Datasets/Tokyo247", help="Path to the data")
+    parser.add_argument('--vector_path', type=str, default="/scratch/jh7956/Datasets/Tokyo247/vector", help="Path to the vector")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
     parser.add_argument('--num_workers', type=int, default=0, help="Number of workers")
     parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
@@ -49,38 +50,30 @@ def parsing_argument():
     parser.add_argument('--factor', type=float, default=0.5, help="Factor")
     parser.add_argument('--device', type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use")
     parser.add_argument('--image_embedding', type=int, default=4096, help="Image embedding size")
-    parser.add_argument('--location_embedding', type=int, default=3, help="Location embedding size")
+    parser.add_argument('--location_embedding', type=int, default=5, help="Location embedding size")
     parser.add_argument('--pretrained', type=bool, default=True, help="Use pretrained model")
     parser.add_argument('--trainable', type=bool, default=True, help="Model is trainable")
     parser.add_argument('--freeze_image_encoder', type=bool, default=False, help="Freeze image encoder")
     parser.add_argument('--temperature', type=float, default=1.0, help="Temperature")
-    parser.add_argument('--img_width', type=int, default=1440, help="Image width")
-    parser.add_argument('--img_height', type=int, default=810, help="Image height")
+    parser.add_argument('--img_width', type=int, default=640, help="Image width")
+    parser.add_argument('--img_height', type=int, default=480, help="Image height")
     parser.add_argument('--num_projection_layers', type=int, default=1, help="Number of projection layers")
     parser.add_argument('--projection_dim', type=int, default=256, help="Projection dimension")
     parser.add_argument('--dropout', type=float, default=0.1, help="Dropout rate")
+    parser.add_argument('--train_test_split', type=float, default=0.05, help="Train test split")
 
     args = parser.parse_args()
     return args
 
 # ----------------- CLIP -----------------
-def prepare_data(data_path, test_size=0.1, random_state=42):
+def prepare_data(data_path, test_size=0.0, random_state=42):
     # List all .png files in the directory
-    image_files = sorted([f for f in os.listdir(data_path) if f.endswith(".png")])
+    image_files = sorted([f for f in os.listdir(data_path) if f.endswith(".jpg")])
 
     # Prepare data
     data = []
     for image_file in image_files:
-        json_file = image_file.replace(".png", ".json")
-        json_path = os.path.join(data_path, json_file)
-
-        with open(json_path, "r") as f:
-            json_data = json.load(f)
-
-        location = json_data["locations"][0]
-        yaw = int(re.search(r"yaw(\d+)", image_file).group(1))
-        location.append(yaw)
-
+        location = parsing_database_image(image_file)
         data.append({"image": image_file, "location": location})
 
     # Convert to DataFrame for easy handling
@@ -93,9 +86,9 @@ def prepare_data(data_path, test_size=0.1, random_state=42):
 
     return train_df, valid_df
 
-def prepare_data_for_query(data_path, test_size=0.1, random_state=42):
+def prepare_data_for_query(data_path, test_size=0.0, random_state=42):
     # List all .png files in the directory
-    image_files = sorted([f for f in os.listdir(data_path) if f.endswith(".png")])
+    image_files = sorted([f for f in os.listdir(data_path) if f.endswith(".jpg")])
 
     # Prepare data
     data = []
@@ -105,12 +98,7 @@ def prepare_data_for_query(data_path, test_size=0.1, random_state=42):
     # Convert to DataFrame for easy handling
     df = pd.DataFrame(data)
 
-    # Split into train and validation sets
-    train_df, valid_df = train_test_split(
-        df, test_size=test_size, random_state=random_state, shuffle=True
-    )
-
-    return train_df, valid_df
+    return df
 
 def build_loaders(dataframe, mode, image_path, args):
     transforms = get_transforms(mode=mode, args=args)
@@ -158,7 +146,7 @@ def train_epoch(model, train_loader, optimizer, lr_scheduler, step, args):
         loss_meter.update(loss.item(), count)
         accuracy_meter.update(accuracy, count)
 
-        tqdm_object.set_postfix(train_loss=loss_meter.avg, train_accuracy=accuracy_meter.avg, lr=get_lr(optimizer))
+    tqdm_object.set_postfix(train_loss=loss_meter.avg, train_accuracy=accuracy_meter.avg, lr=get_lr(optimizer))
 
     return loss_meter.avg, accuracy_meter.avg
 
@@ -179,7 +167,7 @@ def valid_epoch(model, valid_loader, args):
             loss_meter.update(loss.item(), count)
             accuracy_meter.update(accuracy, count)
 
-            tqdm_object.set_postfix(valid_loss=loss_meter.avg, valid_accuracy=accuracy_meter.avg)
+        tqdm_object.set_postfix(valid_loss=loss_meter.avg, valid_accuracy=accuracy_meter.avg)
 
     return loss_meter.avg, accuracy_meter.avg
 
@@ -250,35 +238,7 @@ def do_vpr(database_vectors, query_vectors, args):
 
     return vpr_success_rates
 
-def generate_query_images(image_path, output_path, decay_factor):
-    """
-    Processes an image by reducing its resolution by a given decay factor.
 
-    Args:
-        image_path (str): Path to the input image.
-        output_path (str): Directory to save the processed image.
-        decay_factor (int): The factor by which to reduce the image resolution.
-    """
-    image_paths = glob.glob(os.path.join(image_path, '*.png'))
-    feature_list = []
-
-    for image_path in image_paths:
-        frame = cv2.imread(image_path)
-        if frame is None:
-            print(f"Error opening image {image_path}")
-            continue
-
-        # Resize the image based on the decay factor
-        resized_frame = cv2.resize(frame, (frame.shape[1] // decay_factor, frame.shape[0] // decay_factor))
-
-        # Save the processed image
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-        #还要改
-        processed_image_name = os.path.join(output_path, os.path.basename(image_path).replace('.png', '_resized.png'))
-        cv2.imwrite(processed_image_name, resized_frame)
-
-def extract_features_from_images(model, image_path, output_path, data_loader, device):
     """
     Get the image features from the model and store it to the vector_path. Used for both database and query images.
 
@@ -309,25 +269,69 @@ def extract_features_from_images(model, image_path, output_path, data_loader, de
     np.save(output_path, features_array)
 # ---------------------------------------
 
+# ----------------- Dataset -----------------
+def parsing_database_image(filename):
+    parts = filename.split('@')
+    try:
+        # split with @
+        parts = parts[:9]
+        # discard index 2 and 3
+        parts[-1]=parts[-1].split('.jpg')[0]
+        feature = [float(parts[1]), float(parts[2]), float(parts[5]), float(parts[6]), float(parts[8])]
+    
+    except (ValueError, AssertionError):
+            # If conversion to float fails, skip this file
+            print(f"Skipping file due to invalid format: {filename}")
 
+    return np.array(feature)
+
+def extract_features_from_images(model, image_path, output_path, data_loader, device):
+    """
+    Get the image features from the model and store it to the vector_path. Used for both database and query images.
+
+    Args:
+        model: The model to extract features from.
+        image_path (str): Path to the input image.
+        output_path (str): Directory to save the features.
+    """
+    model.eval()
+    features = []
+
+    with torch.no_grad(): 
+        for batch in data_loader:
+            # Assuming 'image' key in batch dict
+            image_data = batch['image'].to(device)
+            image_features = model.image_encoder(image_data)
+            
+            # Optionally, convert features to another form, e.g., numpy array
+            image_features_np = image_features.cpu().numpy()
+            features.append(image_features_np)
+
+    # Save features to file
+    features_array = np.concatenate(features, axis=0)
+    output_dir = os.path.dirname(output_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    np.save(output_path, features_array)
+# ---------------------------------------
 
 def main():
     print("Start the pipeline...")
     args = parsing_argument()
-    model_pt = args.model_name + ".pt"
-    image_database_path = args.image_path + "/database"
-    image_query_path = args.image_path + "/query"
+    model_pt = args.model_name + args.dataset + ".pt"
+    image_database_path = args.image_path + "/database/raw"
+    image_query_path = args.image_path + "/queries/raw"
 
     model = CPIPModel(args.temperature, args.image_embedding, args.location_embedding, args).to(args.device)
     if os.path.exists(model_pt):
         model.load_state_dict(torch.load(model_pt))
         print("Loaded Best Model!")
     
-    train_df, valid_df = prepare_data(image_database_path)
+    train_df, valid_df = prepare_data(image_database_path, test_size=args.train_test_split)
+    query_df = prepare_data_for_query(image_query_path)
     
     # 1. Train the model
     if args.do_train == 1:
-
         print("Start training the model...")
         train_loader = build_loaders(train_df, mode="train", image_path =image_database_path, args=args)
         valid_loader = build_loaders(valid_df, mode="valid", image_path =image_database_path, args=args)
@@ -361,49 +365,29 @@ def main():
                     torch.save(model.state_dict(), pt_name)
                     print("Saved Best Model!")
 
-    # 2. Generate the query image
-    if args.generate_query == 1:
-        print("Start generating query images...")
-        generate_query_images(image_database_path, image_query_path, args.resolution_decay)
-        print("Query images generated")
-
-    # 3. Store the query and database vectors
+    # 2. Store the query and database vectors
     database_vector_path = os.path.join(args.vector_path, "database_vectors.npy")
     query_vector_path = os.path.join(args.vector_path, "query_vectors.npy")
-
 
     if args.process_data == 1:
         print("Start processing the data...")
 
-        # Create the query and database loaders
-        VPR_df, _ = prepare_data_for_query(image_query_path)
-        VPR_query_loader = build_loaders_for_query(VPR_df, mode="valid", image_path =image_query_path, args=args) # use images with resolution decay and no shuffle
-        VPR_database_loader = build_loaders(train_df, mode="valid", image_path =image_database_path, args=args) # use images without resolution decay and no shuffle
-        print("Data loader created")
+        all_df = pd.concat([train_df, valid_df])
+        all_loader = build_loaders(all_df, mode="valid", image_path =image_database_path, args=args)
 
         # Extract features from the database images and store them
         if not os.path.exists(database_vector_path):
-            extract_features_from_images(model, image_database_path, database_vector_path, VPR_database_loader, args.device)
+            extract_features_from_images(model, image_database_path, database_vector_path, all_loader, args.device)
             print("Database vectors stored")
 
-        # Extract features from the query images and store them
-        if not os.path.exists(query_vector_path):
-            extract_features_from_images(model, image_query_path, query_vector_path, VPR_query_loader, args.device)
-            print("Query vectors stored")
     
-    # 4. Load the database vectors and query vectors
+    # 3. Load the database vectors and query vectors
     database_vectors = np.load(database_vector_path)
-    query_vectors = np.load(query_vector_path)
 
     print(f"Database vectors: {database_vectors.shape}")
-    print(f"Query vectors: {query_vectors.shape}")
 
     # 5. Use the model to do VPR on the validation set
-    vpr_success_rates = do_vpr(database_vectors, query_vectors, args=args)
+    vpr_success_rates = do_vpr(database_vectors, database_vectors, args=args)
 
-
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
-    

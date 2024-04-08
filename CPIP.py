@@ -58,3 +58,4 @@ class CPIPModel(nn.Module):
         loss = (img_to_text_loss + text_to_img_loss) / 2
 
         return loss, logits
+

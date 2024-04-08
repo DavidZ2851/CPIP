@@ -86,19 +86,13 @@ class CPIPDataset(torch.utils.data.Dataset):
         return len(self.df)
 
 def get_transforms(mode="train", args=None):
-    if mode == "train":
         return A.Compose(
             [
                 A.Resize(args.img_height, args.img_width, always_apply=True),
-                A.Normalize(max_pixel_value=255.0, always_apply=True),
+                A.Normalize(max_pixel_value=255.0, mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225], always_apply=True),
             ]
         )
-    else:
-        return A.Compose(
-            [
-                A.Resize(args.img_height, args.img_width, always_apply=True),
-                A.Normalize(max_pixel_value=255.0, always_apply=True),
-            ]
-        )
+
 
     
